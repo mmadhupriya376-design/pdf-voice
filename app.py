@@ -1,9 +1,9 @@
-import streamlit as st
+ import streamlit as st
 from pypdf import PdfReader
 import edge_tts
 import asyncio
-import os
 import tempfile
+import os
 
 st.set_page_config(
     page_title="Smart PDF App",
@@ -11,55 +11,16 @@ st.set_page_config(
 )
 
 st.title("📄 PDF to Voice Converter")
-st.write("Upload a PDF file and convert its text into voice.")
+st.write("Upload a PDF file and convert it into voice.")
 
 uploaded_file = st.file_uploader(
-    "Choose a PDF file",
+    "Upload your PDF file",
     type=["pdf"]
 )
 
-language = st.selectbox(
-    "Select Language",
-    [
-        ("English", "en-US-AriaNeural"),
-        ("Tamil", "ta-IN-PallaviNeural"),
-        ("Hindi", "hi-IN-SwaraNeural")
-    ],
-    format_func=lambda x: x[0]
-)
+if uploaded_file is not None:
 
-def split_text(text, size=3000):
-    return [
-        text[i:i + size]
-        for i in range(0, len(text), size)
-    ]
-
-async def create_audio(text, voice, output_file):
-
-    chunks = split_text(text)
-
-    with open(output_file, "wb") as final_audio:
-
-        for i, chunk in enumerate(chunks):
-
-            temp_file = os.path.join(
-                tempfile.gettempdir(),
-                f"voice_part_{i}.mp3"
-            )
-
-            communicate = edge_tts.Communicate(
-                chunk,
-                voice
-            )
-
-            await communicate.save(temp_file)
-
-            with open(temp_file, "rb") as part:
-                final_audio.write(part.read())
-
-            os.remove(temp_file)
-
-if uploaded_file:
+    st.success("✅ PDF uploaded successfully!")
 
     reader = PdfReader(uploaded_file)
 
@@ -73,50 +34,71 @@ if uploaded_file:
 
     text = text.strip()
 
-    st.text_area(
-        "Text Preview",
-        text[:1000],
-        height=200
-    )
+    if text:
 
-    if st.button("🔊 Convert to Voice"):
+        st.subheader("📖 Extracted Text")
 
-        if not text:
-            st.error(
-                "No readable text found in this PDF."
-            )
+        st.text_area(
+            "PDF Text",
+            text,
+            height=250
+        )
 
-        else:
+        voice = st.selectbox(
+            "Select Voice",
+            [
+                "English",
+                "Tamil",
+                "Hindi"
+            ]
+        )
 
-            with st.spinner(
-                "Converting PDF to voice..."
-            ):
+        if st.button("🔊 Convert to Voice"):
+
+            with st.spinner("Converting to voice..."):
 
                 try:
 
-                    audio_file = os.path.join(
-                        tempfile.gettempdir(),
-                        "converted_audio.mp3"
+                    if voice == "English":
+                        voice_name = "en-US-AriaNeural"
+
+                    elif voice == "Tamil":
+                        voice_name = "ta-IN-PallaviNeural"
+
+                    else:
+                        voice_name = "hi-IN-SwaraNeural"
+
+                    output_file = tempfile.NamedTemporaryFile(
+                        delete=False,
+                        suffix=".mp3"
                     )
 
-                    asyncio.run(
-                        create_audio(
+                    output_path = output_file.name
+                    output_file.close()
+
+                    async def generate_audio():
+
+                        communicate = edge_tts.Communicate(
                             text,
-                            language[1],
-                            audio_file
+                            voice_name
                         )
-                    )
+
+                        await communicate.save(
+                            output_path
+                        )
+
+                    asyncio.run(generate_audio())
 
                     st.success(
-                        "✅ PDF converted to voice successfully!"
+                        "🎉 PDF converted to voice successfully!"
                     )
 
                     with open(
-                        audio_file,
+                        output_path,
                         "rb"
-                    ) as audio:
+                    ) as audio_file:
 
-                        audio_data = audio.read()
+                        audio_data = audio_file.read()
 
                     st.audio(
                         audio_data,
@@ -124,14 +106,22 @@ if uploaded_file:
                     )
 
                     st.download_button(
-                        "⬇️ Download Audio",
+                        "⬇️ Download Voice",
                         audio_data,
-                        file_name="converted_audio.mp3",
+                        file_name="pdf_voice.mp3",
                         mime="audio/mp3"
                     )
+
+                    os.remove(output_path)
 
                 except Exception as e:
 
                     st.error(
-                        f"Error: {e}"
+                        f"❌ Voice conversion failed: {e}"
                     )
+
+    else:
+
+        st.error(
+            "❌ No readable text found in this PDF."
+        )
