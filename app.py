@@ -1,9 +1,7 @@
- import streamlit as st
+import streamlit as st
 from pypdf import PdfReader
-import edge_tts
-import asyncio
-import tempfile
-import os
+import streamlit.components.v1 as components
+import json
 
 st.set_page_config(
     page_title="Smart PDF App",
@@ -11,10 +9,10 @@ st.set_page_config(
 )
 
 st.title("📄 PDF to Voice Converter")
-st.write("Upload a PDF file and convert it into voice.")
+st.write("Upload a PDF file and listen to it as voice.")
 
 uploaded_file = st.file_uploader(
-    "Upload your PDF file",
+    "📄 Upload your PDF",
     type=["pdf"]
 )
 
@@ -44,81 +42,85 @@ if uploaded_file is not None:
             height=250
         )
 
-        voice = st.selectbox(
-            "Select Voice",
+        language = st.selectbox(
+            "🌐 Select Language",
             [
-                "English",
-                "Tamil",
-                "Hindi"
+                ("English", "en-IN"),
+                ("Tamil", "ta-IN"),
+                ("Hindi", "hi-IN")
             ]
         )
 
+        language_name = language[0]
+        language_code = language[1]
+
         if st.button("🔊 Convert to Voice"):
 
-            with st.spinner("Converting to voice..."):
+            safe_text = json.dumps(text)
 
-                try:
+            html_code = f"""
+            <!DOCTYPE html>
+            <html>
+            <body>
 
-                    if voice == "English":
-                        voice_name = "en-US-AriaNeural"
+            <button onclick="speakText()"
+                    style="
+                    font-size:18px;
+                    padding:12px 25px;
+                    cursor:pointer;
+                    ">
+                ▶️ Play Voice
+            </button>
 
-                    elif voice == "Tamil":
-                        voice_name = "ta-IN-PallaviNeural"
+            <button onclick="stopVoice()"
+                    style="
+                    font-size:18px;
+                    padding:12px 25px;
+                    cursor:pointer;
+                    margin-left:10px;
+                    ">
+                ⏹️ Stop
+            </button>
 
-                    else:
-                        voice_name = "hi-IN-SwaraNeural"
+            <script>
 
-                    output_file = tempfile.NamedTemporaryFile(
-                        delete=False,
-                        suffix=".mp3"
-                    )
+            const text = {safe_text};
 
-                    output_path = output_file.name
-                    output_file.close()
+            function speakText() {{
 
-                    async def generate_audio():
+                window.speechSynthesis.cancel();
 
-                        communicate = edge_tts.Communicate(
-                            text,
-                            voice_name
-                        )
+                const speech =
+                    new SpeechSynthesisUtterance(text);
 
-                        await communicate.save(
-                            output_path
-                        )
+                speech.lang = "{language_code}";
+                speech.rate = 0.9;
+                speech.pitch = 1.0;
+                speech.volume = 1.0;
 
-                    asyncio.run(generate_audio())
+                window.speechSynthesis.speak(speech);
+            }}
 
-                    st.success(
-                        "🎉 PDF converted to voice successfully!"
-                    )
+            function stopVoice() {{
 
-                    with open(
-                        output_path,
-                        "rb"
-                    ) as audio_file:
+                window.speechSynthesis.cancel();
 
-                        audio_data = audio_file.read()
+            }}
 
-                    st.audio(
-                        audio_data,
-                        format="audio/mp3"
-                    )
+            </script>
 
-                    st.download_button(
-                        "⬇️ Download Voice",
-                        audio_data,
-                        file_name="pdf_voice.mp3",
-                        mime="audio/mp3"
-                    )
+            </body>
+            </html>
+            """
 
-                    os.remove(output_path)
+            st.success(
+                "🎉 PDF converted to voice successfully!"
+            )
 
-                except Exception as e:
-
-                    st.error(
-                        f"❌ Voice conversion failed: {e}"
-                    )
+            components.html(
+                html_code,
+                height=100
+            )
 
     else:
 
